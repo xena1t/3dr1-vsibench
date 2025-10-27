@@ -50,6 +50,7 @@ AVAILABLE_MODELS = {
     "xcomposer2d5": "XComposer2D5",
     "qwen2vl": "Qwen2VL",
     "qwen3vl": "Qwen3VL",
+    "three_d_r1": "ThreeDR1",
 }
 
 # --- Extendable plugin loader ---
@@ -80,6 +81,9 @@ from lmms_eval.api.registry import MODEL_REGISTRY
 from lmms_eval.api.registry import MODEL_REGISTRY
 
 
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
 def get_model(model_name):
     """
     Resolve a model class by name.
@@ -99,6 +103,8 @@ def get_model(model_name):
     if model_name in MODEL_REGISTRY:
         print(f"[INFO] Found {model_name} in MODEL_REGISTRY")
         return MODEL_REGISTRY[model_name]
+
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
 
     raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
 
