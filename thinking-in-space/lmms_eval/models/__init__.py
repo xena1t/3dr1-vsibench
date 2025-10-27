@@ -5,11 +5,16 @@ import sys
 import hf_transfer
 from loguru import logger
 
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+# --- Patch sys.modules to unify namespace ---
+import thinking_in_space.lmms_eval as _ts_eval
+sys.modules["lmms_eval"] = _ts_eval  # ensure registry & imports share namespace
 
+# --- Configure logging ---
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 logger.remove()
 logger.add(sys.stdout, level="WARNING")
 
+# --- Baseline models ---
 AVAILABLE_MODELS = {
     "batch_gpt4": "BatchGPT4",
     "claude": "Claude",
@@ -46,7 +51,24 @@ AVAILABLE_MODELS = {
     "qwen3vl": "Qwen3VL",
 }
 
+# --- Extendable plugin loader ---
+if os.environ.get("LMMS_EVAL_PLUGINS"):
+    for plugin in os.environ["LMMS_EVAL_PLUGINS"].split(","):
+        try:
+            m = importlib.import_module(f"{plugin}.models")
+            for model_name, model_class in getattr(m, "AVAILABLE_MODELS", {}).items():
+                AVAILABLE_MODELS[model_name] = model_class
+        except Exception as e:
+            logger.warning(f"Failed to import plugin {plugin}: {e}")
 
+# --- Force import of three_d_r1 adapter ---
+try:
+    from lmms_eval.models import three_d_r1  # ensure 3D-R1 auto-registers
+    AVAILABLE_MODELS["three_d_r1"] = "ThreeDR1"
+except Exception as e:
+    logger.warning(f"Could not import three_d_r1: {e}")
+
+# --- get_model API ---
 def get_model(model_name):
     if model_name not in AVAILABLE_MODELS:
         raise ValueError(f"Model {model_name} not found in available models.")
@@ -58,16 +80,3 @@ def get_model(model_name):
     except Exception as e:
         logger.error(f"Failed to import {model_class} from {model_name}: {e}")
         raise
-
-
-if os.environ.get("LMMS_EVAL_PLUGINS", None):
-    # Allow specifying other packages to import models from
-    for plugin in os.environ["LMMS_EVAL_PLUGINS"].split(","):
-        m = importlib.import_module(f"{plugin}.models")
-        for model_name, model_class in getattr(m, "AVAILABLE_MODELS").items():
-            try:
-                exec(f"from {plugin}.models.{model_name} import {model_class}")
-            except ImportError as e:
-                logger.debug(f"Failed to import {model_class} from {model_name}: {e}")
-
-from lmms_eval.models import three_d_r1  # ensure 3D-R1 auto-registers on import
