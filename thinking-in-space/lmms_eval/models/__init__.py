@@ -71,14 +71,14 @@ try:
 except Exception as e:
     logger.warning(f"Could not import three_d_r1: {e}")
 
-# --- Unified model loader with registry fallback ---
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
 def get_model(model_name):
     """
-    Resolve a model class by name. Falls back to lmms_eval.api.registry.MODEL_REGISTRY
-    so that dynamically registered plugin models (like three_d_r1) are found.
+    Resolve a model class by name.
+    Checks both AVAILABLE_MODELS and the global MODEL_REGISTRY (for plugin-registered models).
     """
-    from lmms_eval.api.registry import MODEL_REGISTRY
-
     # 1️⃣ Direct lookup in AVAILABLE_MODELS
     if model_name in AVAILABLE_MODELS:
         model_class = AVAILABLE_MODELS[model_name]
@@ -89,19 +89,26 @@ def get_model(model_name):
             logger.error(f"Failed to import {model_class} from {model_name}: {e}")
             raise
 
-    # 2️⃣ Fallback to MODEL_REGISTRY
+    # 2️⃣ Fallback: check MODEL_REGISTRY (populated by @register_model)
     if model_name in MODEL_REGISTRY:
         print(f"[INFO] Found {model_name} in MODEL_REGISTRY")
         return MODEL_REGISTRY[model_name]
 
     raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
 
-# --- Post-registration check ---
-try:
-    from lmms_eval.api.registry import MODEL_REGISTRY
-    if "three_d_r1" in MODEL_REGISTRY:
-        print("[INFO] Verified: three_d_r1 is registered in MODEL_REGISTRY")
-    else:
-        print("[WARN] three_d_r1 not found in MODEL_REGISTRY — ensure decorator ran")
-except Exception as e:
-    print(f"[WARN] Could not verify MODEL_REGISTRY: {e}")
+    # 2️⃣ Fallback to MODEL_REGISTRY
+    if model_name in MODEL_REGISTRY:
+        print(f"[INFO] Found {model_name} in MODEL_REGISTRY")
+        return MODEL_REGISTRY[model_name]
+
+if os.environ.get("LMMS_EVAL_PLUGINS", None):
+    # Allow specifying other packages to import models from
+    for plugin in os.environ["LMMS_EVAL_PLUGINS"].split(","):
+        m = importlib.import_module(f"{plugin}.models")
+        for model_name, model_class in getattr(m, "AVAILABLE_MODELS").items():
+            try:
+                exec(f"from {plugin}.models.{model_name} import {model_class}")
+            except ImportError as e:
+                logger.debug(f"Failed to import {model_class} from {model_name}: {e}")
+
+from lmms_eval.models import three_d_r1  # ensure 3D-R1 auto-registers on import
