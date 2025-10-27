@@ -3,7 +3,7 @@
 This repository stitches together the [AIGeeksGroup/3D-R1](https://github.com/AIGeeksGroup/3D-R1) project and the VSI-Bench evaluation suite (via `thinking-in-space/lmms-eval`). Follow the instructions below to reproduce the exact integration used in this workspace and run VSI-Bench with 3D-R1 acting as the model backend.
 
 > **Note**
-> The codebase currently contains placeholder entry points inside `3D-R1/three_dr1_bridge.py`. Replace every `TODO` section with the actual loading and inference calls that execute your 3D-R1 model. Once that is done the rest of the pipeline works unchanged.
+> The codebase currently wires 3D-R1 through environment-driven entry points defined in `three_dr1_bridge/__init__.py`. Point those hooks at your actual model loader and inference function before running evaluations.
 
 ---
 
@@ -12,14 +12,15 @@ This repository stitches together the [AIGeeksGroup/3D-R1](https://github.com/AI
 ```
 /workspace/
 ├─ 3dr1-vsibench/              # this repo
-│  ├─ 3D-R1/                   # editable install of upstream 3D-R1 with bridge helpers
+│  ├─ README.md                # integration playbook (this file)
+│  ├─ pyproject.toml           # optional editable install for the helper package
+│  ├─ three_dr1_bridge/        # lightweight helpers that expose 3D-R1 inference
 │  ├─ thinking-in-space/       # VSI-Bench repo that ships lmms-eval
-│  ├─ tools/
-│  │  └─ video_to_multiview.py # utility that extracts view frames from videos
-│  └─ 3dr1-vsibench/README.md  # (this file)
+│  └─ tools/
+│     └─ video_to_multiview.py # utility that extracts view frames from videos
 ```
 
-Both `3D-R1` and `thinking-in-space` are installed in editable mode so local code modifications are picked up immediately.
+Install the helper package in editable mode alongside the upstream repos so local code modifications are picked up immediately.
 
 ---
 
@@ -55,8 +56,8 @@ Both `3D-R1` and `thinking-in-space` are installed in editable mode so local cod
 5. **Install the local repositories in editable mode** so modifications are immediately available:
 
    ```bash
+   pip install -e /workspace/3dr1-vsibench
    pip install -e /workspace/3dr1-vsibench/thinking-in-space
-   pip install -e /workspace/3dr1-vsibench/3D-R1
    ```
 
 ---
@@ -82,7 +83,7 @@ You should also verify `nvidia-smi` works in the same shell. If CUDA reports una
 
 ## 4. Supply 3D-R1 Entry Points
 
-Edit `3D-R1/three_dr1_bridge.py` and replace the placeholder logic with the actual 3D-R1 model loading and inference calls. The adapter expects a callable with the signature:
+Edit `three_dr1_bridge/__init__.py` and replace the placeholder logic with the actual 3D-R1 model loading and inference calls. The adapter expects a callable with the signature:
 
 ```python
 run_3dr1(prompt: str, images: List[str], device: Optional[str] = None, **kwargs) -> str
@@ -180,7 +181,7 @@ If your 3D-R1 model requires camera poses or intrinsics, integrate COLMAP:
    colmap mapper --database_path "$SCENE_DIR/db.db" --image_path "$SCENE_DIR/frames" --output_path "$SCENE_DIR/sparse"
    ```
 
-4. Convert COLMAP outputs (`cameras.txt`, `images.txt`) into the pose format that your 3D-R1 inference expects and modify `three_dr1_bridge.py` accordingly to forward both images and pose metadata.
+4. Convert COLMAP outputs (`cameras.txt`, `images.txt`) into the pose format that your 3D-R1 inference expects and modify `three_dr1_bridge/__init__.py` accordingly to forward both images and pose metadata.
 
 ---
 
@@ -188,7 +189,7 @@ If your 3D-R1 model requires camera poses or intrinsics, integrate COLMAP:
 
 | Symptom | Suggested Fix |
 | --- | --- |
-| `ModuleNotFoundError: three_dr1_bridge` | Ensure `pip install -e /workspace/3dr1-vsibench/3D-R1` was executed inside the active environment. |
+| `ModuleNotFoundError: three_dr1_bridge` | Ensure `pip install -e /workspace/3dr1-vsibench` was executed inside the active environment. |
 | `CUDA available: False` | Reinstall a CUDA wheel, check driver/container setup, and confirm `nvidia-smi` output. |
 | OOM during evaluation | Reduce `--views` or `--batch_size`, lower `--max_side` in frame extraction, or enable mixed precision in your model. |
 | Answers scored incorrectly | Update `_postprocess_answer` or return exact tokens (`A/B/C/D`, `Yes/No`, etc.). |
@@ -197,7 +198,7 @@ If your 3D-R1 model requires camera poses or intrinsics, integrate COLMAP:
 
 ## 9. Next Steps
 
-* Implement the 3D-R1 model initialization and inference logic inside `three_dr1_bridge.py`.
+* Implement the 3D-R1 model initialization and inference logic inside `three_dr1_bridge/__init__.py`.
 * Run the smoke test to ensure the adapter and extractor function correctly.
 * Scale up to the full VSI-Bench evaluation and analyze the generated logs.
 

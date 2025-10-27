@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import importlib
 import json
 import os
 from pathlib import Path
 from subprocess import check_output
 from typing import Dict, List
 
-from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from lmms_eval.api.model import lmms
 
-bridge = importlib.import_module("three_dr1_bridge")
+from three_dr1_bridge import run_3dr1
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -62,7 +61,7 @@ class ThreeDR1(lmms):
         for idx, request in enumerate(requests):
             prompt = request["prompt"]
             images = self._resolve_images(request, idx)
-            answer = bridge.run_3dr1(
+            answer = run_3dr1(
                 prompt=prompt,
                 images=images,
                 device=self.device,
