@@ -6,8 +6,9 @@ import hf_transfer
 from loguru import logger
 
 # --- Patch sys.modules to unify namespace ---
+# Ensures that `thinking_in_space.lmms_eval` and `lmms_eval` share the same registry
 import thinking_in_space.lmms_eval as _ts_eval
-sys.modules["lmms_eval"] = _ts_eval  # ensure registry & imports share namespace
+sys.modules["lmms_eval"] = _ts_eval
 
 # --- Configure logging ---
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
@@ -58,35 +59,49 @@ if os.environ.get("LMMS_EVAL_PLUGINS"):
             m = importlib.import_module(f"{plugin}.models")
             for model_name, model_class in getattr(m, "AVAILABLE_MODELS", {}).items():
                 AVAILABLE_MODELS[model_name] = model_class
+            print(f"[INFO] Loaded plugin models from: {plugin}")
         except Exception as e:
             logger.warning(f"Failed to import plugin {plugin}: {e}")
 
-# --- Force import of three_d_r1 adapter ---
+# --- Force import of three_d_r1 adapter (ensures registration decorator runs) ---
 try:
-    from lmms_eval.models import three_d_r1  # ensure 3D-R1 auto-registers
+    from lmms_eval.models import three_d_r1  # triggers @register_model("three_d_r1")
     AVAILABLE_MODELS["three_d_r1"] = "ThreeDR1"
+    print("[INFO] three_d_r1 imported successfully and added to AVAILABLE_MODELS")
 except Exception as e:
     logger.warning(f"Could not import three_d_r1: {e}")
 
-# --- get_model API ---
+# --- Unified model loader with registry fallback ---
 def get_model(model_name):
-    if model_name not in AVAILABLE_MODELS:
-        raise ValueError(f"Model {model_name} not found in available models.")
+    """
+    Resolve a model class by name. Falls back to lmms_eval.api.registry.MODEL_REGISTRY
+    so that dynamically registered plugin models (like three_d_r1) are found.
+    """
+    from lmms_eval.api.registry import MODEL_REGISTRY
 
-    model_class = AVAILABLE_MODELS[model_name]
-    try:
-        module = __import__(f"lmms_eval.models.{model_name}", fromlist=[model_class])
-        return getattr(module, model_class)
-    except Exception as e:
-        logger.error(f"Failed to import {model_class} from {model_name}: {e}")
-        raise
+    # 1️⃣ Direct lookup in AVAILABLE_MODELS
+    if model_name in AVAILABLE_MODELS:
+        model_class = AVAILABLE_MODELS[model_name]
+        try:
+            module = __import__(f"lmms_eval.models.{model_name}", fromlist=[model_class])
+            return getattr(module, model_class)
+        except Exception as e:
+            logger.error(f"Failed to import {model_class} from {model_name}: {e}")
+            raise
 
-# --- Ensure 3D-R1 is discoverable ---
+    # 2️⃣ Fallback to MODEL_REGISTRY
+    if model_name in MODEL_REGISTRY:
+        print(f"[INFO] Found {model_name} in MODEL_REGISTRY")
+        return MODEL_REGISTRY[model_name]
+
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
+
+# --- Post-registration check ---
 try:
-    from lmms_eval.models import three_d_r1 as _three_d_r1
-    if "three_d_r1" not in AVAILABLE_MODELS:
-        AVAILABLE_MODELS["three_d_r1"] = "ThreeDR1"
-    print("[INFO] Registered model three_d_r1 in AVAILABLE_MODELS")
+    from lmms_eval.api.registry import MODEL_REGISTRY
+    if "three_d_r1" in MODEL_REGISTRY:
+        print("[INFO] Verified: three_d_r1 is registered in MODEL_REGISTRY")
+    else:
+        print("[WARN] three_d_r1 not found in MODEL_REGISTRY — ensure decorator ran")
 except Exception as e:
-    print(f"[WARN] Failed to auto-register three_d_r1: {e}")
-
+    print(f"[WARN] Could not verify MODEL_REGISTRY: {e}")
