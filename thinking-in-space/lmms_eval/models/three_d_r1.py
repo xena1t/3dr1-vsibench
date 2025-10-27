@@ -16,9 +16,7 @@ from three_dr1_bridge import run_3dr1
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _register_three_d_r1() -> None:
-    if "three_d_r1" in MODEL_REGISTRY:
-        return
+if "three_d_r1" not in MODEL_REGISTRY:
 
     @register_model("three_d_r1")
     class ThreeDR1(lmms):
@@ -74,5 +72,8 @@ def _register_three_d_r1() -> None:
                 outputs.append(answer)
             return outputs
 
+else:
+    ThreeDR1 = MODEL_REGISTRY["three_d_r1"]
 
-_register_three_d_r1()
+
+__all__ = ["ThreeDR1"]

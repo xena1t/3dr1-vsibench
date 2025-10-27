@@ -77,6 +77,9 @@ from lmms_eval.api.registry import MODEL_REGISTRY
 from lmms_eval.api.registry import MODEL_REGISTRY
 
 
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
 def get_model(model_name):
     """
     Resolve a model class by name.
