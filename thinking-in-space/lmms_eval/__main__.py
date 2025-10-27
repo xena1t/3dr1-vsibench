@@ -41,6 +41,9 @@ from lmms_eval.utils import (
     make_table,
     simple_parse_args_string,
 )
+
+# Ensure custom model adapters register with the global registry before evaluation starts.
+import lmms_eval.models.three_d_r1  # preload 3D-R1 model registration
 launcher_env = (os.getenv("LMMS_EVAL_LAUNCHER", "python") or "python").lower()
 if launcher_env in {"accelerate", "acc"}:
     print("Launcher detected: accelerate")
