@@ -24,6 +24,10 @@ class ThreeDR1(lmms):
         self.views = views
         self.kwargs = kwargs
 
+    def loglikelihood(self, requests):
+        """Not implemented for the 3D-R1 adapter."""
+        raise NotImplementedError("three_d_r1 does not support loglikelihood")
+
     def _video_to_multiview(self, video_path: str, tmp_dir: str) -> List[str]:
         cmd = [
             "python",
