@@ -80,3 +80,13 @@ def get_model(model_name):
     except Exception as e:
         logger.error(f"Failed to import {model_class} from {model_name}: {e}")
         raise
+
+# --- Ensure 3D-R1 is discoverable ---
+try:
+    from lmms_eval.models import three_d_r1 as _three_d_r1
+    if "three_d_r1" not in AVAILABLE_MODELS:
+        AVAILABLE_MODELS["three_d_r1"] = "ThreeDR1"
+    print("[INFO] Registered model three_d_r1 in AVAILABLE_MODELS")
+except Exception as e:
+    print(f"[WARN] Failed to auto-register three_d_r1: {e}")
+
