@@ -74,6 +74,9 @@ except Exception as e:
 from lmms_eval.api.registry import MODEL_REGISTRY
 
 
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
 def get_model(model_name):
     """
     Resolve a model class by name.
@@ -93,6 +96,8 @@ def get_model(model_name):
     if model_name in MODEL_REGISTRY:
         print(f"[INFO] Found {model_name} in MODEL_REGISTRY")
         return MODEL_REGISTRY[model_name]
+
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
 
     raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
 
