@@ -69,3 +69,5 @@ if os.environ.get("LMMS_EVAL_PLUGINS", None):
                 exec(f"from {plugin}.models.{model_name} import {model_class}")
             except ImportError as e:
                 logger.debug(f"Failed to import {model_class} from {model_name}: {e}")
+
+from lmms_eval.models import three_d_r1  # ensure 3D-R1 auto-registers on import
