@@ -182,6 +182,29 @@ issue:
 
 ---
 
+## 6.4 Handling Missing Optional Dependencies
+
+The integration purposely keeps heavyweight dependencies optional so that the
+Python modules can still be imported in lightweight environments. When a
+dependency such as PyTorch or Jinja2 is missing, the CLI now surfaces explicit
+runtime guidance instead of failing during import. Install the requirement when
+you encounter one of these messages:
+
+```bash
+# Example: PyTorch requested by lmms-eval at runtime
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Example: Jinja2 needed for template-based prompt construction
+pip install jinja2
+```
+
+If you only intend to run quick smoke tests without GPU support, you may set
+`THREE_DR1_ALLOW_STUB=1` to bypass the PyTorch requirement temporarily. Real
+evaluations should always install the dependencies so the adapter can execute
+the actual 3D-R1 model.
+
+---
+
 ## 7. Optional: Pose-aware Pipeline with COLMAP
 
 If your 3D-R1 model requires camera poses or intrinsics, integrate COLMAP:
