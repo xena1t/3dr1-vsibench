@@ -50,6 +50,12 @@ def _format_default_error(extra: str | None = None) -> str:
     )
     return " ".join([base, *details])
 
+
+# Backwards compatibility for integrations (or stale bytecode) that still
+# reference the old constant-style error message.  This ensures we surface the
+# richer guidance above instead of crashing with ``NameError``.
+_DEFAULT_ERROR = _format_default_error()
+
 NUM_WORDS = {
     "zero": 0,
     "one": 1,
@@ -125,19 +131,6 @@ def _resolve_loader() -> Callable[..., Any]:
             )
             return _default_loader
         raise RuntimeError(_format_default_error(str(exc)))
-
-
-def _resolve_loader() -> Callable[..., Any]:
-    entrypoint = os.environ.get("THREE_DR1_ENTRYPOINT")
-    if entrypoint:
-        return _load_entrypoint(entrypoint)
-
-    try:
-        return _load_entrypoint(_DEFAULT_ENTRYPOINT)
-    except (ModuleNotFoundError, AttributeError):
-        if os.environ.get("THREE_DR1_ALLOW_STUB", "0") == "1":
-            return _default_loader
-        raise RuntimeError(_DEFAULT_ERROR)
 
 
 def _lazy_init() -> None:
