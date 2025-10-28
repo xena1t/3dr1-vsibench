@@ -3,7 +3,7 @@
 This repository stitches together the [AIGeeksGroup/3D-R1](https://github.com/AIGeeksGroup/3D-R1) project and the VSI-Bench evaluation suite (via `thinking-in-space/lmms-eval`). Follow the instructions below to reproduce the exact integration used in this workspace and run VSI-Bench with 3D-R1 acting as the model backend.
 
 > **Note**
-> The codebase currently wires 3D-R1 through environment-driven entry points defined in `three_dr1_bridge/__init__.py`. Point those hooks at your actual model loader and inference function before running evaluations.
+> The codebase currently wires 3D-R1 through environment-driven entry points defined in `three_dr1_bridge/__init__.py`. Point those hooks at your actual model loader and inference function before running evaluations. Runs abort with a helpful error if no entry point is configured; set `THREE_DR1_ALLOW_STUB=1` only when you deliberately want the placeholder predictions for smoke-tests (they return `0` for every example and will score `0.0`).
 
 ---
 
@@ -160,10 +160,10 @@ placeholder text (for example, when the fallback stub is still active) or that
 the numeric answers cannot be parsed. Use the following checks to track down the
 issue:
 
-1. **Watch for stub warnings.** The bridge emits a console warning whenever the
-   built-in stub handles a request. Configure `THREE_DR1_ENTRYPOINT` so a real
-   3D-R1 loader is used instead of the stub, otherwise every answer will default
-   to `0`.
+1. **Configure a real entry point.** The bridge now raises an error if
+   `THREE_DR1_ENTRYPOINT` is missing so that accidental runs do not silently
+   produce all-zero scores. Override this behaviour only when intentionally
+   setting `THREE_DR1_ALLOW_STUB=1` for smoke tests.
 2. **Inspect the logged samples.** When `--log_samples` is enabled, review the
    generated `vsibench.json` file with the helper script:
 

@@ -23,7 +23,8 @@ _DEFAULT_ERROR = (
     "No THREE_DR1_ENTRYPOINT specified and the default 3D-R1 implementation "
     "is not available. Install your 3D-R1 package and set the environment "
     "variable THREE_DR1_ENTRYPOINT to a 'module:function' loader (e.g. "
-    "'my_pkg.pipeline:load_pipeline')."
+    "'my_pkg.pipeline:load_pipeline'). Set THREE_DR1_ALLOW_STUB=1 to use the "
+    "placeholder predictions for smoke-testing only."
 )
 
 NUM_WORDS = {
@@ -94,7 +95,12 @@ def _lazy_init() -> None:
         return
 
     entrypoint = os.environ.get("THREE_DR1_ENTRYPOINT")
-    loader = _load_entrypoint(entrypoint) if entrypoint else _default_loader
+    if entrypoint:
+        loader = _load_entrypoint(entrypoint)
+    else:
+        if os.environ.get("THREE_DR1_ALLOW_STUB", "0") != "1":
+            raise RuntimeError(_DEFAULT_ERROR)
+        loader = _default_loader
 
     loader_kwargs: dict[str, Any] = {}
     model_path = os.environ.get("THREE_DR1_MODEL_PATH")
