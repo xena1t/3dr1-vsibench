@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import inspect
 import json
+import logging
 import os
 import pathlib
 import re
@@ -25,7 +26,19 @@ from typing import (
     Union,
 )
 
-import yaml
+try:
+    import yaml  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    yaml = None
+
+try:
+    import pytz  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    class _UTCProxy:
+        def timezone(self, _name: str):  # type: ignore[no-untyped-def]
+            return datetime.timezone.utc
+
+    pytz = _UTCProxy()  # type: ignore[assignment]
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore")
@@ -33,11 +46,27 @@ warnings.filterwarnings("ignore")
 import gc
 from itertools import islice
 
-import pytz
-import torch
-import transformers
+try:
+    import torch  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    torch = None  # type: ignore[assignment]
+
+try:
+    import transformers  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    transformers = None  # type: ignore[assignment]
+
 from jinja2 import BaseLoader, Environment, StrictUndefined
-from loguru import logger as eval_logger
+
+try:
+    from loguru import logger as eval_logger  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    eval_logger = logging.getLogger("lmms_eval.utils")
+    if not eval_logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s | %(message)s"))
+        eval_logger.addHandler(handler)
+    eval_logger.setLevel(logging.INFO)
 
 SPACING = " " * 47
 HIGHER_IS_BETTER_SYMBOLS = {
@@ -613,6 +642,20 @@ def import_function(loader, node):
 
 
 def load_yaml_config(yaml_path=None, yaml_config=None, yaml_dir=None, mode="full"):
+    if yaml is None:
+        if yaml_config is not None:
+            return yaml_config
+        if yaml_path is not None:
+            basename = os.path.basename(yaml_path)
+            if basename == "vsibench.yaml":
+                from lmms_eval.tasks.vsibench.config import VSIBENCH_CONFIG
+
+                return VSIBENCH_CONFIG
+        raise RuntimeError(
+            "PyYAML is required to load task configurations. Install it via `pip install pyyaml` or use the provided"
+            " Python fallback configuration."
+        )
+
     if mode == "simple":
         constructor_fn = ignore_constructor
     elif mode == "full":
@@ -686,6 +729,8 @@ def pad_and_concat(
     tensors: List[torch.Tensor],
     padding_side: Literal["right", "left"] = "right",
 ):
+    if torch is None:
+        raise RuntimeError("pad_and_concat requires PyTorch. Install it via `pip install torch`.")
     """
     Method for padding a list of tensors given the maximum tensor
     length in the batch. Used for batching inputs and continuations in
@@ -732,10 +777,13 @@ def pad_and_concat(
 
 def clear_torch_cache() -> None:
     gc.collect()
-    torch.cuda.empty_cache()
+    if torch is not None and torch.cuda.is_available():  # type: ignore[attr-defined]
+        torch.cuda.empty_cache()
 
 
 def get_dtype(dtype: Union[str, torch.dtype]) -> torch.dtype:
+    if torch is None:
+        raise RuntimeError("get_dtype requires PyTorch. Install it via `pip install torch`.")
     """Converts `dtype` from `str` to torch.dtype when possible. Does not use an instantiated HF AutoConfig"""
     if isinstance(dtype, str) and dtype != "auto":
         # Convert `str` args torch dtype: `float16` -> `torch.float16`

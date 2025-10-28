@@ -1,12 +1,38 @@
 import abc
 import hashlib
 import json
+import logging
 import os
+import sys
 from typing import List, Optional, Tuple, Type, TypeVar, Union
 
-from loguru import logger as eval_logger
-from sqlitedict import SqliteDict
-from tqdm import tqdm
+try:
+    from loguru import logger as eval_logger  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    eval_logger = logging.getLogger("lmms_eval.model")
+    if not eval_logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s | %(message)s"))
+        eval_logger.addHandler(handler)
+    eval_logger.setLevel(logging.INFO)
+
+try:
+    from sqlitedict import SqliteDict  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    class SqliteDict(dict):
+        """Lightweight in-memory stand-in when sqlitedict is unavailable."""
+
+        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            super().__init__()
+
+        def commit(self) -> None:  # pragma: no cover - compatibility shim
+            pass
+
+try:
+    from tqdm import tqdm  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    def tqdm(iterable, **kwargs):  # type: ignore[override]
+        return iterable
 
 from lmms_eval import utils
 from lmms_eval.api.instance import Instance
