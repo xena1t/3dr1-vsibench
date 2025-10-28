@@ -49,14 +49,52 @@ from itertools import islice
 try:
     import torch  # type: ignore[import-not-found]
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    torch = None  # type: ignore[assignment]
+    from typing import Any as _Any
+
+    class _TorchStub:  # pragma: no cover - runtime guard only
+        Tensor = _Any
+
+        def __getattr__(self, name: str) -> None:
+            raise RuntimeError(
+                "PyTorch is required for this operation but is not installed. "
+                "Install the `torch` package or run tasks that do not depend on it."
+            )
+
+    torch = _TorchStub()  # type: ignore[assignment]
 
 try:
     import transformers  # type: ignore[import-not-found]
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     transformers = None  # type: ignore[assignment]
 
-from jinja2 import BaseLoader, Environment, StrictUndefined
+try:  # pragma: no cover - optional dependency
+    from jinja2 import BaseLoader, Environment, StrictUndefined
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    class BaseLoader:  # type: ignore[too-few-public-methods]
+        """Fallback loader used when Jinja2 is unavailable."""
+
+    class StrictUndefined:  # type: ignore[too-few-public-methods]
+        """Placeholder StrictUndefined that mimics Jinja2's API."""
+
+        def __init__(self, *args, **kwargs) -> None:  # noqa: D401 - stub behaviour
+            """Initialise the stub."""
+
+    class _Template:
+        def __init__(self, template: str) -> None:
+            self._template = template
+
+        def render(self, **_: object) -> str:
+            raise RuntimeError(
+                "Jinja2 is required to render templates but is not installed. "
+                "Install `jinja2` or avoid string-based doc_to_text/doc_to_target templates."
+            )
+
+    class Environment:  # type: ignore[too-few-public-methods]
+        def __init__(self, *args, **kwargs) -> None:
+            self.filters = {}
+
+        def from_string(self, template: str) -> _Template:
+            return _Template(template)
 
 try:
     from loguru import logger as eval_logger  # type: ignore[import-not-found]
