@@ -18,6 +18,13 @@ _device = "cuda" if torch.cuda.is_available() else "cpu"
 _model: Any | None = None
 _inference_fn: Callable[..., Any] | None = None
 
+_DEFAULT_ERROR = (
+    "No THREE_DR1_ENTRYPOINT specified and the default 3D-R1 implementation "
+    "is not available. Install your 3D-R1 package and set the environment "
+    "variable THREE_DR1_ENTRYPOINT to a 'module:function' loader (e.g. "
+    "'my_pkg.pipeline:load_pipeline')."
+)
+
 
 def _load_entrypoint(entrypoint: str) -> Callable[..., Any]:
     if ":" not in entrypoint:
@@ -25,11 +32,31 @@ def _load_entrypoint(entrypoint: str) -> Callable[..., Any]:
             "THREE_DR1_ENTRYPOINT must be of the form 'package.module:function'"
         )
     module_name, func_name = entrypoint.split(":", 1)
-    module = importlib.import_module(module_name)
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            f"Unable to import '{module_name}' from THREE_DR1_ENTRYPOINT='{entrypoint}'. "
+            "Ensure your 3D-R1 package is installed and the entry point is correct."
+        ) from exc
     try:
         return getattr(module, func_name)
     except AttributeError as exc:
         raise AttributeError(f"Entry point '{entrypoint}' not found") from exc
+
+
+def _default_loader(**_: Any) -> Any:
+    class _StubModel:
+        def __init__(self, message: str) -> None:
+            self._message = message
+
+        def __call__(self, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover - informational
+            raise RuntimeError(self._message)
+
+        def generate(self, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover - informational
+            raise RuntimeError(self._message)
+
+    return _StubModel(_DEFAULT_ERROR)
 
 
 def _lazy_init() -> None:
@@ -38,8 +65,8 @@ def _lazy_init() -> None:
     if _model is not None:
         return
 
-    entrypoint = os.environ.get("THREE_DR1_ENTRYPOINT", "three_dr1.pipeline:load_pipeline")
-    loader = _load_entrypoint(entrypoint)
+    entrypoint = os.environ.get("THREE_DR1_ENTRYPOINT")
+    loader = _load_entrypoint(entrypoint) if entrypoint else _default_loader
 
     loader_kwargs: dict[str, Any] = {}
     model_path = os.environ.get("THREE_DR1_MODEL_PATH")
