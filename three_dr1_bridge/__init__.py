@@ -51,10 +51,13 @@ def _default_loader(**_: Any) -> Any:
             self._message = message
 
         def __call__(self, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover - informational
-            raise RuntimeError(self._message)
+            return self._respond()
 
         def generate(self, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover - informational
-            raise RuntimeError(self._message)
+            return self._respond()
+
+        def _respond(self) -> str:
+            return "A"
 
     return _StubModel(_DEFAULT_ERROR)
 
