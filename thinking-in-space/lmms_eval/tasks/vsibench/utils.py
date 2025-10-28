@@ -1,12 +1,26 @@
 
 import os
 from pathlib import Path
-import yaml
-from loguru import logger as eval_logger
+try:
+    import yaml  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    yaml = None
 from functools import partial
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
+import logging
+import sys
+
+try:
+    from loguru import logger as eval_logger  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    eval_logger = logging.getLogger("lmms_eval.tasks.vsibench")
+    if not eval_logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s | %(message)s"))
+        eval_logger.addHandler(handler)
+    eval_logger.setLevel(logging.INFO)
 
 import datasets
 
@@ -36,13 +50,27 @@ METRICS_FOR_NA = {
 
 hf_home = os.getenv("HF_HOME", "~/.cache/huggingface/")
 base_cache_dir = os.path.expanduser(hf_home)
-with open(Path(__file__).parent / "vsibench.yaml", "r") as f:
-    raw_data = f.readlines()
-    safe_data = []
-    for i, line in enumerate(raw_data):
-        if "!function" not in line:
-            safe_data.append(line)
-cache_name = yaml.safe_load("".join(safe_data))["dataset_kwargs"]["cache_dir"]
+
+
+def _extract_cache_dir() -> str:
+    config_path = Path(__file__).parent / "vsibench.yaml"
+    with open(config_path, "r", encoding="utf-8") as f:
+        if yaml is None:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("cache_dir:"):
+                    return stripped.split(":", 1)[1].strip()
+            return "vsibench"
+
+        raw_data = f.readlines()
+        safe_data = []
+        for line in raw_data:
+            if "!function" not in line:
+                safe_data.append(line)
+        return yaml.safe_load("".join(safe_data))["dataset_kwargs"]["cache_dir"]
+
+
+cache_name = _extract_cache_dir()
 
 
 def vsibench_doc_to_visual(doc):

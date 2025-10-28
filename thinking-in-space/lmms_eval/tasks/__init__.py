@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from functools import partial
-from typing import Dict, List, Mapping, Optional, Union
+from typing import Dict, Iterable, List, Mapping, Optional, Union
 
 from loguru import logger as eval_logger
 
@@ -15,6 +15,31 @@ from lmms_eval.api.task import ConfigurableTask, Task
 from lmms_eval.evaluator_utils import get_subtask_list
 
 GROUP_ONLY_KEYS = list(GroupConfig().to_dict().keys())
+
+_GLOBAL_INCLUDE_PATHS: List[str] = []
+
+
+def _normalize_include_path(path: str) -> str:
+    normalized = os.path.abspath(path)
+    if os.path.isdir(normalized) and not normalized.endswith(os.sep):
+        normalized = normalized + os.sep
+    return normalized
+
+
+def include_path(path: Union[str, Iterable[str]]) -> None:
+    """Register additional directories that should be searched for tasks."""
+
+    if path is None:
+        return
+
+    if isinstance(path, (list, tuple, set)):
+        for entry in path:
+            include_path(entry)
+        return
+
+    normalized = _normalize_include_path(path)
+    if normalized not in _GLOBAL_INCLUDE_PATHS:
+        _GLOBAL_INCLUDE_PATHS.append(normalized)
 
 _DOUBLE_STAR_INVALID_RE = re.compile(r"\*\*(?!/|$)")
 
@@ -124,6 +149,9 @@ class TaskManager:
             if isinstance(include_path, str):
                 include_path = [include_path]
             all_paths.extend(include_path)
+
+        if _GLOBAL_INCLUDE_PATHS:
+            all_paths.extend(_GLOBAL_INCLUDE_PATHS)
 
         task_index = {}
         for task_dir in all_paths:
