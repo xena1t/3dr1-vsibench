@@ -127,6 +127,19 @@ def _resolve_loader() -> Callable[..., Any]:
         raise RuntimeError(_format_default_error(str(exc)))
 
 
+def _resolve_loader() -> Callable[..., Any]:
+    entrypoint = os.environ.get("THREE_DR1_ENTRYPOINT")
+    if entrypoint:
+        return _load_entrypoint(entrypoint)
+
+    try:
+        return _load_entrypoint(_DEFAULT_ENTRYPOINT)
+    except (ModuleNotFoundError, AttributeError):
+        if os.environ.get("THREE_DR1_ALLOW_STUB", "0") == "1":
+            return _default_loader
+        raise RuntimeError(_DEFAULT_ERROR)
+
+
 def _lazy_init() -> None:
     """Initialise the underlying 3D-R1 model lazily on first use."""
     global _model, _inference_fn
