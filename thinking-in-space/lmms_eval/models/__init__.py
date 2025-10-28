@@ -1,19 +1,34 @@
 import importlib
+import logging
 import os
 import sys
 
-import hf_transfer
-from loguru import logger
+try:
+    import hf_transfer  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    hf_transfer = None
+
+try:
+    from loguru import logger  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    logger = logging.getLogger("lmms_eval.models")
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s | %(message)s"))
+        logger.addHandler(handler)
+    logger.setLevel(logging.WARNING)
+    _HAS_LOGURU = False
+else:
+    _HAS_LOGURU = True
 
 # --- Patch sys.modules to unify namespace ---
 # Ensures that `thinking_in_space.lmms_eval` and `lmms_eval` share the same registry
 import thinking_in_space.lmms_eval as _ts_eval
 sys.modules["lmms_eval"] = _ts_eval
 
-# --- Configure logging ---
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
-logger.remove()
-logger.add(sys.stdout, level="WARNING")
+if _HAS_LOGURU:
+    logger.remove()
+    logger.add(sys.stdout, level="WARNING")
 
 # --- Baseline models ---
 AVAILABLE_MODELS = {
@@ -93,6 +108,9 @@ from lmms_eval.api.registry import MODEL_REGISTRY
 from lmms_eval.api.registry import MODEL_REGISTRY
 
 
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
 def get_model(model_name):
     """
     Resolve a model class by name.
@@ -112,6 +130,8 @@ def get_model(model_name):
     if model_name in MODEL_REGISTRY:
         print(f"[INFO] Found {model_name} in MODEL_REGISTRY")
         return MODEL_REGISTRY[model_name]
+
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
 
     raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
 
