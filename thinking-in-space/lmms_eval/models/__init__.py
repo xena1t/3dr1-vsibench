@@ -1,14 +1,31 @@
 import importlib
+import logging
 import os
 import sys
 
-import hf_transfer
-from loguru import logger
+try:
+    import hf_transfer  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    hf_transfer = None
+
+try:
+    from loguru import logger  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    logger = logging.getLogger("lmms_eval.models")
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s | %(message)s"))
+        logger.addHandler(handler)
+    logger.setLevel(logging.WARNING)
+    _HAS_LOGURU = False
+else:
+    _HAS_LOGURU = True
 
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 
-logger.remove()
-logger.add(sys.stdout, level="WARNING")
+if _HAS_LOGURU:
+    logger.remove()
+    logger.add(sys.stdout, level="WARNING")
 
 AVAILABLE_MODELS = {
     "batch_gpt4": "BatchGPT4",
@@ -44,20 +61,34 @@ AVAILABLE_MODELS = {
     "xcomposer2d5": "XComposer2D5",
     "qwen2vl": "Qwen2VL",
     "qwen3vl": "Qwen3VL",
+    "three_d_r1": "ThreeDR1",
 }
 
 
-def get_model(model_name):
-    if model_name not in AVAILABLE_MODELS:
-        raise ValueError(f"Model {model_name} not found in available models.")
+from lmms_eval.api.registry import MODEL_REGISTRY
 
-    model_class = AVAILABLE_MODELS[model_name]
-    try:
-        module = __import__(f"lmms_eval.models.{model_name}", fromlist=[model_class])
-        return getattr(module, model_class)
-    except Exception as e:
-        logger.error(f"Failed to import {model_class} from {model_name}: {e}")
-        raise
+
+def get_model(model_name):
+    """
+    Resolve a model class by name.
+    Checks both AVAILABLE_MODELS and the global MODEL_REGISTRY (for plugin-registered models).
+    """
+    # 1️⃣ Direct lookup in AVAILABLE_MODELS
+    if model_name in AVAILABLE_MODELS:
+        model_class = AVAILABLE_MODELS[model_name]
+        try:
+            module = __import__(f"lmms_eval.models.{model_name}", fromlist=[model_class])
+            return getattr(module, model_class)
+        except Exception as e:
+            logger.error(f"Failed to import {model_class} from {model_name}: {e}")
+            raise
+
+    # 2️⃣ Fallback: check MODEL_REGISTRY (populated by @register_model)
+    if model_name in MODEL_REGISTRY:
+        print(f"[INFO] Found {model_name} in MODEL_REGISTRY")
+        return MODEL_REGISTRY[model_name]
+
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
 
 
 if os.environ.get("LMMS_EVAL_PLUGINS", None):
@@ -69,3 +100,5 @@ if os.environ.get("LMMS_EVAL_PLUGINS", None):
                 exec(f"from {plugin}.models.{model_name} import {model_class}")
             except ImportError as e:
                 logger.debug(f"Failed to import {model_class} from {model_name}: {e}")
+
+from lmms_eval.models import three_d_r1  # ensure 3D-R1 auto-registers on import
