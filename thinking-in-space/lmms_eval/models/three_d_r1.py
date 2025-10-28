@@ -20,6 +20,7 @@ class ThreeDR1(lmms):
     """Minimal wrapper translating lmms-eval requests into 3D-R1 calls."""
 
     def __init__(self, device: str = "cuda", views: int = 24, **kwargs) -> None:
+        super().__init__()
         self.device = device
         self.views = views
         self.kwargs = kwargs
