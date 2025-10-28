@@ -25,6 +25,20 @@ _DEFAULT_ERROR = (
     "'my_pkg.pipeline:load_pipeline')."
 )
 
+NUM_WORDS = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+}
+
 
 def _load_entrypoint(entrypoint: str) -> Callable[..., Any]:
     if ":" not in entrypoint:
@@ -57,7 +71,9 @@ def _default_loader(**_: Any) -> Any:
             return self._respond()
 
         def _respond(self) -> str:
-            return "A"
+            return (
+                f"{_DEFAULT_ERROR} Final answer: 0"
+            )
 
     return _StubModel(_DEFAULT_ERROR)
 
@@ -104,19 +120,46 @@ def _lazy_init() -> None:
         _model.eval()
 
 
+def _coerce_numeric(fragment: str) -> Optional[str]:
+    match = re.search(r"[-+]?\d+(?:\.\d+)?", fragment)
+    if match:
+        token = match.group(0)
+        if re.fullmatch(r"[-+]?\d+", token):
+            return str(int(token))
+        if re.fullmatch(r"[-+]?\d+\.0+", token):
+            return str(int(float(token)))
+        return token
+
+    for word, value in NUM_WORDS.items():
+        if re.search(rf"\b{word}\b", fragment, flags=re.IGNORECASE):
+            return str(value)
+
+    return None
+
+
 def _postprocess_answer(text: Any) -> str:
-    """Normalize the raw generation into a compact final answer string."""
+    """Normalise the raw generation into a compact final answer string."""
     if not isinstance(text, str):
         text = str(text)
 
-    patterns = [
-        r"(?:Final\s*answer|Answer)\s*[:\-]\s*([A-D]|Yes|No|True|False)\b",
-        r"\b([A-D])\b(?!.*\b[A-D]\b)",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, text, flags=re.IGNORECASE)
-        if match:
-            return match.group(1)
+    explicit = re.search(r"(?:Final\s*answer|Answer)\s*[:\-]\s*([^\n\r]+)", text, flags=re.IGNORECASE)
+    if explicit:
+        candidate = explicit.group(1).strip()
+        number = _coerce_numeric(candidate)
+        if number is not None:
+            return number
+        letter = re.search(r"\b([A-D])\b", candidate, flags=re.IGNORECASE)
+        if letter:
+            return letter.group(1).upper()
+        return candidate
+
+    number = _coerce_numeric(text)
+    if number is not None:
+        return number
+
+    letter = re.search(r"\b([A-D])\b(?!.*\b[A-D]\b)", text)
+    if letter:
+        return letter.group(1)
 
     return text.strip()
 
@@ -139,8 +182,26 @@ def run_3dr1(prompt: str, images: List[str], device: Optional[str] = None, **kwa
     chosen_device = device or _device
     extra_kwargs = _prepare_kwargs(**kwargs)
 
+    image_list = list(images)
+    debug_enabled = os.environ.get("LMMS_EVAL_DEBUG", "0") == "1"
+    if debug_enabled:
+        truncated = prompt.replace("\n", " ")[:120]
+        print(
+            f"[three_d_r1] device={chosen_device} views={len(image_list)} prompt[:120]={truncated}..."
+        )
+
     if _inference_fn is None:
         raise RuntimeError("3D-R1 inference function not initialised")
 
-    result = _inference_fn(prompt=prompt, image_paths=list(images), device=chosen_device, **extra_kwargs)
-    return _postprocess_answer(result)
+    result = _inference_fn(
+        prompt=prompt,
+        image_paths=image_list,
+        device=chosen_device,
+        **extra_kwargs,
+    )
+    answer = _postprocess_answer(result)
+
+    if debug_enabled:
+        print(f"[three_d_r1] normalised output: {answer}")
+
+    return answer

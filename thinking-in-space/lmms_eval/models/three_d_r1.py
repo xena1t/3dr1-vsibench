@@ -152,6 +152,10 @@ class ThreeDR1(lmms):
                 device=self.device,
                 **self.kwargs,
             )
+            if os.environ.get("LMMS_EVAL_DEBUG", "0") == "1":
+                print(
+                    f"[three_d_r1] sample={idx} views={len(images)} answer={answer}"
+                )
             outputs.append(answer)
         return outputs
 
