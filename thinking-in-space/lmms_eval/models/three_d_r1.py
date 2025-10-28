@@ -6,7 +6,8 @@ import json
 import os
 from pathlib import Path
 from subprocess import check_output
-from typing import Dict, Iterable, List, Sequence, Union
+from typing import Any, Dict, Iterable, List, Sequence, Union
+from collections.abc import Mapping
 
 from lmms_eval.api.model import lmms
 from lmms_eval.api.instance import Instance
@@ -87,6 +88,35 @@ class ThreeDR1(lmms):
 
         return images
 
+    def _is_instance_request(self, request: object) -> bool:
+        if isinstance(request, Instance):
+            return True
+        return all(
+            hasattr(request, attr) for attr in ("args", "arguments", "request_type", "metadata")
+        )
+
+    def _get_field(self, request: object, key: str, default: Any = None) -> Any:
+        if isinstance(request, Mapping):
+            return request.get(key, default)
+
+        getter = getattr(request, "get", None)
+        if callable(getter):
+            try:
+                return getter(key, default)
+            except TypeError:
+                pass
+
+        return getattr(request, key, default)
+
+    def _ensure_list(self, value: Any) -> List[Any]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        if isinstance(value, tuple):
+            return list(value)
+        return [value]
+
     def _resolve_from_instance(self, instance: Instance, index: int) -> Dict[str, Union[str, Sequence[str]]]:
         context, _, doc_to_visual, doc_id, task, split = instance.args
         prompt = context
@@ -96,22 +126,19 @@ class ThreeDR1(lmms):
         return {"prompt": prompt, "images": images}
 
     def _resolve_images(self, request: Union[Dict, Instance], index: int) -> Dict[str, Union[str, Sequence[str]]]:
-        if isinstance(request, Instance):
+        if self._is_instance_request(request):
+            # cast for type checking; runtime already validated attributes
+            request = request  # type: ignore
             return self._resolve_from_instance(request, index)
 
-        if request.get("videos"):
-            video = request["videos"][0]
-            video_path = video if isinstance(video, str) else video.get("path")
-            if not video_path:
-                raise RuntimeError("three_d_r1: missing video path in request")
-            tmp_dir = os.path.join("/tmp", f"mv_{os.getpid()}_{index}")
-            images = self._video_to_multiview(video_path, tmp_dir)
-        else:
-            images = request.get("images", [])
-            if images and not isinstance(images, list):
-                raise TypeError("three_d_r1 expects images to be a list of paths")
+        prompt = self._get_field(request, "prompt", "")
 
-        return {"prompt": request.get("prompt", ""), "images": images}
+        visuals: List[Any] = []
+        visuals.extend(self._ensure_list(self._get_field(request, "images", [])))
+        visuals.extend(self._ensure_list(self._get_field(request, "videos", [])))
+
+        images = self._materialize_visuals(visuals, index)
+        return {"prompt": prompt, "images": images}
 
     def generate_until(self, requests: List[Union[Dict, Instance]]) -> List[str]:
         outputs: List[str] = []
