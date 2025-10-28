@@ -19,12 +19,15 @@ _model: Any | None = None
 _inference_fn: Callable[..., Any] | None = None
 _STUB_NOTICE_SHOWN = False
 
+_DEFAULT_ENTRYPOINT = "three_dr1.pipeline:load_pipeline"
+
 _DEFAULT_ERROR = (
-    "No THREE_DR1_ENTRYPOINT specified and the default 3D-R1 implementation "
-    "is not available. Install your 3D-R1 package and set the environment "
-    "variable THREE_DR1_ENTRYPOINT to a 'module:function' loader (e.g. "
-    "'my_pkg.pipeline:load_pipeline'). Set THREE_DR1_ALLOW_STUB=1 to use the "
-    "placeholder predictions for smoke-testing only."
+    "No THREE_DR1_ENTRYPOINT specified and the official 3D-R1 loader "
+    "'three_dr1.pipeline:load_pipeline' could not be imported. Install the "
+    "upstream 3D-R1 package (which exposes that entry point), or set the "
+    "environment variable THREE_DR1_ENTRYPOINT to your own 'module:function' "
+    "loader (e.g. 'my_pkg.pipeline:load_pipeline'). If you only need the stub "
+    "predictions for smoke tests, export THREE_DR1_ALLOW_STUB=1 instead."
 )
 
 NUM_WORDS = {
@@ -88,19 +91,26 @@ def _default_loader(**_: Any) -> Any:
     return _StubModel(_DEFAULT_ERROR)
 
 
+def _resolve_loader() -> Callable[..., Any]:
+    entrypoint = os.environ.get("THREE_DR1_ENTRYPOINT")
+    if entrypoint:
+        return _load_entrypoint(entrypoint)
+
+    try:
+        return _load_entrypoint(_DEFAULT_ENTRYPOINT)
+    except (ModuleNotFoundError, AttributeError):
+        if os.environ.get("THREE_DR1_ALLOW_STUB", "0") == "1":
+            return _default_loader
+        raise RuntimeError(_DEFAULT_ERROR)
+
+
 def _lazy_init() -> None:
     """Initialise the underlying 3D-R1 model lazily on first use."""
     global _model, _inference_fn
     if _model is not None:
         return
 
-    entrypoint = os.environ.get("THREE_DR1_ENTRYPOINT")
-    if entrypoint:
-        loader = _load_entrypoint(entrypoint)
-    else:
-        if os.environ.get("THREE_DR1_ALLOW_STUB", "0") != "1":
-            raise RuntimeError(_DEFAULT_ERROR)
-        loader = _default_loader
+    loader = _resolve_loader()
 
     loader_kwargs: dict[str, Any] = {}
     model_path = os.environ.get("THREE_DR1_MODEL_PATH")
