@@ -16,7 +16,10 @@ This repository stitches together the [AIGeeksGroup/3D-R1](https://github.com/AI
 Use that upstream README when you need deeper information about the model architecture or training pipeline; keep reading below for the steps specific to VSI-Bench integration.
 
 > **Note**
-> The codebase currently wires 3D-R1 through environment-driven entry points defined in `three_dr1_bridge/__init__.py`. Point those hooks at your actual model loader and inference function before running evaluations. Runs abort with a helpful error if no entry point is configured; set `THREE_DR1_ALLOW_STUB=1` only when you deliberately want the placeholder predictions for smoke-tests (they return `0` for every example and will score `0.0`).
+> The adapter automatically tries to import the official loader exposed by the upstream PyPI release (`three_dr1.pipeline:load_pipeline`).
+> If you've installed that package the bridge will discover it without extra configuration.
+> Otherwise, point `THREE_DR1_ENTRYPOINT` at your own loader function before running evaluations.
+> Export `THREE_DR1_ALLOW_STUB=1` only when you deliberately want the placeholder predictions for smoke-tests (they return `0` for every example and will score `0.0`).
 
 ---
 
