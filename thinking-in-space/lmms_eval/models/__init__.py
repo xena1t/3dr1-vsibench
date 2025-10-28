@@ -21,12 +21,16 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
 else:
     _HAS_LOGURU = True
 
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+# --- Patch sys.modules to unify namespace ---
+# Ensures that `thinking_in_space.lmms_eval` and `lmms_eval` share the same registry
+import thinking_in_space.lmms_eval as _ts_eval
+sys.modules["lmms_eval"] = _ts_eval
 
 if _HAS_LOGURU:
     logger.remove()
     logger.add(sys.stdout, level="WARNING")
 
+# --- Baseline models ---
 AVAILABLE_MODELS = {
     "batch_gpt4": "BatchGPT4",
     "claude": "Claude",
@@ -64,6 +68,45 @@ AVAILABLE_MODELS = {
     "three_d_r1": "ThreeDR1",
 }
 
+# --- Extendable plugin loader ---
+if os.environ.get("LMMS_EVAL_PLUGINS"):
+    for plugin in os.environ["LMMS_EVAL_PLUGINS"].split(","):
+        try:
+            m = importlib.import_module(f"{plugin}.models")
+            for model_name, model_class in getattr(m, "AVAILABLE_MODELS", {}).items():
+                AVAILABLE_MODELS[model_name] = model_class
+            print(f"[INFO] Loaded plugin models from: {plugin}")
+        except Exception as e:
+            logger.warning(f"Failed to import plugin {plugin}: {e}")
+
+# --- Force import of three_d_r1 adapter (ensures registration decorator runs) ---
+try:
+    from lmms_eval.models import three_d_r1  # triggers @register_model("three_d_r1")
+    AVAILABLE_MODELS["three_d_r1"] = "ThreeDR1"
+    print("[INFO] three_d_r1 imported successfully and added to AVAILABLE_MODELS")
+except Exception as e:
+    logger.warning(f"Could not import three_d_r1: {e}")
+
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
+from lmms_eval.api.registry import MODEL_REGISTRY
+
+
+from lmms_eval.api.registry import MODEL_REGISTRY
+
 
 from lmms_eval.api.registry import MODEL_REGISTRY
 
@@ -90,6 +133,20 @@ def get_model(model_name):
 
     raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
 
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
+
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
+
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
+
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
+
+    raise ValueError(f"Model {model_name} not found in AVAILABLE_MODELS or MODEL_REGISTRY.")
+
+    # 2️⃣ Fallback to MODEL_REGISTRY
+    if model_name in MODEL_REGISTRY:
+        print(f"[INFO] Found {model_name} in MODEL_REGISTRY")
+        return MODEL_REGISTRY[model_name]
 
 if os.environ.get("LMMS_EVAL_PLUGINS", None):
     # Allow specifying other packages to import models from
