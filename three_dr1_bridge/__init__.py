@@ -17,6 +17,7 @@ import torch
 _device = "cuda" if torch.cuda.is_available() else "cpu"
 _model: Any | None = None
 _inference_fn: Callable[..., Any] | None = None
+_STUB_NOTICE_SHOWN = False
 
 _DEFAULT_ERROR = (
     "No THREE_DR1_ENTRYPOINT specified and the default 3D-R1 implementation "
@@ -71,6 +72,14 @@ def _default_loader(**_: Any) -> Any:
             return self._respond()
 
         def _respond(self) -> str:
+            global _STUB_NOTICE_SHOWN
+            if not _STUB_NOTICE_SHOWN:
+                print(
+                    "[three_d_r1][warning] Running with the built-in stub. "
+                    "Configure THREE_DR1_ENTRYPOINT for real predictions.",
+                    flush=True,
+                )
+                _STUB_NOTICE_SHOWN = True
             return (
                 f"{_DEFAULT_ERROR} Final answer: 0"
             )

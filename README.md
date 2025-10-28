@@ -153,6 +153,35 @@ The `output_path` directory will contain evaluation metrics and the serialized p
 
 ---
 
+### 6.3 Diagnosing `0.0` Results
+
+An overall score of `0.0` almost always indicates that the bridge returned
+placeholder text (for example, when the fallback stub is still active) or that
+the numeric answers cannot be parsed. Use the following checks to track down the
+issue:
+
+1. **Watch for stub warnings.** The bridge emits a console warning whenever the
+   built-in stub handles a request. Configure `THREE_DR1_ENTRYPOINT` so a real
+   3D-R1 loader is used instead of the stub, otherwise every answer will default
+   to `0`.
+2. **Inspect the logged samples.** When `--log_samples` is enabled, review the
+   generated `vsibench.json` file with the helper script:
+
+   ```bash
+   python tools/vsibench_debug.py \
+       --log logs/$(date +%Y%m%d)/3dr1_vsibench_test/<run_id>/vsibench.json \
+       --limit 5 --summary
+   ```
+
+   The script prints the question type, model prediction, ground truth, and for
+   numeric tasks the absolute error. A prediction distribution summary quickly
+   reveals when the model is outputting the same constant for every example.
+3. **Enable verbose adapter logs** by re-running with `LMMS_EVAL_DEBUG=1` to
+   confirm that prompts, extracted view counts, and normalised answers look as
+   expected.
+
+---
+
 ## 7. Optional: Pose-aware Pipeline with COLMAP
 
 If your 3D-R1 model requires camera poses or intrinsics, integrate COLMAP:
