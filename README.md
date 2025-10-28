@@ -2,8 +2,24 @@
 
 This repository stitches together the [AIGeeksGroup/3D-R1](https://github.com/AIGeeksGroup/3D-R1) project and the VSI-Bench evaluation suite (via `thinking-in-space/lmms-eval`). Follow the instructions below to reproduce the exact integration used in this workspace and run VSI-Bench with 3D-R1 acting as the model backend.
 
+> **Looking for the upstream README?**
+> The official 3D-R1 documentation—including the paper links, citation block, training/data preparation walkthroughs, RL recipes, and case studies—is vendored in this repository at [`3D-R1/README.md`](./3D-R1/README.md). The summary below highlights the most commonly referenced sections so you can quickly navigate the upstream guide while setting up VSI-Bench.
+
+### Upstream 3D-R1 highlights
+
+* **Paper & assets:** [`3D-R1: Enhancing Reasoning in 3D VLMs for Unified Scene Understanding`](https://arxiv.org/abs/2507.23478) with project site, datasets, and released checkpoints linked at the top of the upstream README.
+* **Environment expectations:** CUDA 11.8, Python 3.9.16, and dependencies such as `torch==2.0.1+cu118`, `trimesh`, `Depth-Anything`, and `google-generativeai`. After installing Python packages, build the bundled `pointnet2` and accelerated `giou` extensions from source (see "Environment Setup" in the upstream README).
+* **Data preparation:** Download ScanNet-derived point clouds plus language annotations from ScanRefer, Nr3D, ScanQA, and the ScanNet split of 3D-LLM. Scene-30K can be synthesised locally via `script/synthesize_scene30K.sh` or downloaded from Hugging Face.
+* **Training scripts:** Supervised fine-tuning and RLHF entry points live under `script/train.generalist.sh` and `script/train.rl.sh`.
+* **Case studies:** The README showcases dense captioning, grounding, QA, dialogue, reasoning, and planning demos, along with news updates and a TODO list that tracks upcoming upstream releases (visualisation tutorial, Hugging Face demo, etc.).
+
+Use that upstream README when you need deeper information about the model architecture or training pipeline; keep reading below for the steps specific to VSI-Bench integration.
+
 > **Note**
-> The codebase currently wires 3D-R1 through environment-driven entry points defined in `three_dr1_bridge/__init__.py`. Point those hooks at your actual model loader and inference function before running evaluations. Runs abort with a helpful error if no entry point is configured; set `THREE_DR1_ALLOW_STUB=1` only when you deliberately want the placeholder predictions for smoke-tests (they return `0` for every example and will score `0.0`).
+> The adapter automatically tries to import the official loader exposed by the upstream PyPI release (`three_dr1.pipeline:load_pipeline`).
+> Install that package directly or run `pip install -e 3D-R1` inside this repository so the vendored sources become importable.
+> Otherwise, point `THREE_DR1_ENTRYPOINT` at your own loader function before running evaluations.
+> Export `THREE_DR1_ALLOW_STUB=1` only when you deliberately want the placeholder predictions for smoke-tests (they return `0` for every example and will score `0.0`).
 
 ---
 
@@ -58,6 +74,7 @@ Install the helper package in editable mode alongside the upstream repos so loca
    ```bash
    pip install -e /workspace/3dr1-vsibench
    pip install -e /workspace/3dr1-vsibench/thinking-in-space
+   pip install -e /workspace/3dr1-vsibench/3D-R1
    ```
 
 ---
@@ -162,8 +179,11 @@ issue:
 
 1. **Configure a real entry point.** The bridge now raises an error if
    `THREE_DR1_ENTRYPOINT` is missing so that accidental runs do not silently
-   produce all-zero scores. Override this behaviour only when intentionally
-   setting `THREE_DR1_ALLOW_STUB=1` for smoke tests.
+   produce all-zero scores. Install the official package (`pip install -e 3D-R1`
+   inside this repo or the published wheel) so that
+   `three_dr1.pipeline:load_pipeline` becomes importable, or explicitly point
+   the environment variable at your own loader. Override this behaviour only
+   when intentionally setting `THREE_DR1_ALLOW_STUB=1` for smoke tests.
 2. **Inspect the logged samples.** When `--log_samples` is enabled, review the
    generated `vsibench.json` file with the helper script:
 
@@ -179,6 +199,29 @@ issue:
 3. **Enable verbose adapter logs** by re-running with `LMMS_EVAL_DEBUG=1` to
    confirm that prompts, extracted view counts, and normalised answers look as
    expected.
+
+---
+
+## 6.4 Handling Missing Optional Dependencies
+
+The integration purposely keeps heavyweight dependencies optional so that the
+Python modules can still be imported in lightweight environments. When a
+dependency such as PyTorch or Jinja2 is missing, the CLI now surfaces explicit
+runtime guidance instead of failing during import. Install the requirement when
+you encounter one of these messages:
+
+```bash
+# Example: PyTorch requested by lmms-eval at runtime
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Example: Jinja2 needed for template-based prompt construction
+pip install jinja2
+```
+
+If you only intend to run quick smoke tests without GPU support, you may set
+`THREE_DR1_ALLOW_STUB=1` to bypass the PyTorch requirement temporarily. Real
+evaluations should always install the dependencies so the adapter can execute
+the actual 3D-R1 model.
 
 ---
 
