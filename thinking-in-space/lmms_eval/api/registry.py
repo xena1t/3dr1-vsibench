@@ -1,7 +1,23 @@
 from typing import Callable, Dict
 
-import evaluate as hf_evaluate
-from loguru import logger as eval_logger
+import sys
+
+try:
+    import evaluate as hf_evaluate  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    hf_evaluate = None
+
+try:
+    from loguru import logger as eval_logger  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    import logging
+
+    eval_logger = logging.getLogger("lmms_eval.registry")
+    if not eval_logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s | %(message)s"))
+        eval_logger.addHandler(handler)
+    eval_logger.setLevel(logging.WARNING)
 
 from lmms_eval.api.model import lmms
 
@@ -112,6 +128,12 @@ def get_metric(name: str, hf_evaluate_metric=False) -> Callable:
             return METRIC_REGISTRY[name]
         else:
             eval_logger.warning(f"Could not find registered metric '{name}' in lm-eval, searching in HF Evaluate library...")
+
+    if hf_evaluate is None:
+        raise RuntimeError(
+            "The `evaluate` package is required to load metric '%s'. Install it via `pip install evaluate`."
+            % name
+        )
 
     try:
         metric_object = hf_evaluate.load(name)
