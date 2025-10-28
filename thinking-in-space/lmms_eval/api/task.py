@@ -30,6 +30,10 @@ import numpy as np
 from accelerate import Accelerator
 from datasets import DownloadConfig, Image, Sequence
 from huggingface_hub import snapshot_download
+try:  # pragma: no cover - optional dependency shim
+    from huggingface_hub.errors import LocalTokenNotFoundError
+except ImportError:  # pragma: no cover - fallback for older hub versions
+    LocalTokenNotFoundError = type("LocalTokenNotFoundError", (RuntimeError,), {})
 from loguru import logger as eval_logger
 from PIL import ImageFile
 from tenacity import (
@@ -1181,6 +1185,8 @@ class ConfigurableTask(Task):
             load_kwargs = {}
         else:
             load_kwargs = _sanitize_globs(dataset_kwargs)
+            if isinstance(load_kwargs, Mapping):
+                load_kwargs = dict(load_kwargs)
             if not isinstance(load_kwargs, Mapping):
                 raise TypeError("dataset_kwargs must be a mapping of keyword arguments")
 
@@ -1210,6 +1216,49 @@ class ConfigurableTask(Task):
                     "Please ensure task configuration uses '**/' as a full path component."
                 ) from exc
             raise
+        except LocalTokenNotFoundError as exc:
+            if isinstance(load_kwargs, dict):
+                load_kwargs.pop("token", None)
+            repo_id = repo_id_for_snapshot if isinstance(repo_id_for_snapshot, str) else None
+            cache_path = _ensure_snapshot(cache_path, local_files_only=True)
+            if repo_id is not None and cache_path is not None:
+                try:
+                    self.dataset = _load_dataset_from_snapshot_parquet(
+                        repo_id=repo_id,
+                        snapshot_path=cache_path,
+                        load_kwargs=load_kwargs,
+                        download_config=download_config,
+                        download_mode=datasets.DownloadMode.REUSE_DATASET_IF_EXISTS,
+                        split_preference=(
+                            self.config.test_split,
+                            self.config.validation_split,
+                            self.config.training_split,
+                        ),
+                    )
+                    eval_logger.warning(
+                        "Loaded dataset %s from cached snapshot at %s because no Hugging Face token was available.",
+                        repo_id,
+                        cache_path,
+                    )
+                except Exception as fallback_error:
+                    raise RuntimeError(
+                        (
+                            "Dataset %s requires a Hugging Face access token. "
+                            "Run `huggingface-cli login` or set the HF_TOKEN/HUGGINGFACEHUB_API_TOKEN environment "
+                            "variable before launching evaluation."
+                        )
+                        % (repo_id or sanitized_path,)
+                    ) from fallback_error
+            else:
+                requirement = repo_id or sanitized_path or self.DATASET_NAME
+                raise RuntimeError(
+                    (
+                        "Dataset %s requires a Hugging Face access token but none was found. "
+                        "Run `huggingface-cli login` or set the HF_TOKEN/HUGGINGFACEHUB_API_TOKEN environment "
+                        "variable before launching evaluation."
+                    )
+                    % (requirement,)
+                ) from exc
         except datasets.exceptions.DataFilesNotFoundError as exc:
             repo_id = repo_id_for_snapshot if isinstance(repo_id_for_snapshot, str) else None
             if repo_id is None:
