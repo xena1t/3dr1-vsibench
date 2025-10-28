@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import os
 import re
+from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional
 
 import torch
@@ -20,15 +21,34 @@ _inference_fn: Callable[..., Any] | None = None
 _STUB_NOTICE_SHOWN = False
 
 _DEFAULT_ENTRYPOINT = "three_dr1.pipeline:load_pipeline"
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_VENDORED_SOURCES = _REPO_ROOT / "3D-R1"
 
-_DEFAULT_ERROR = (
-    "No THREE_DR1_ENTRYPOINT specified and the official 3D-R1 loader "
-    "'three_dr1.pipeline:load_pipeline' could not be imported. Install the "
-    "upstream 3D-R1 package (which exposes that entry point), or set the "
-    "environment variable THREE_DR1_ENTRYPOINT to your own 'module:function' "
-    "loader (e.g. 'my_pkg.pipeline:load_pipeline'). If you only need the stub "
-    "predictions for smoke tests, export THREE_DR1_ALLOW_STUB=1 instead."
-)
+
+def _format_default_error(extra: str | None = None) -> str:
+    base = (
+        "No THREE_DR1_ENTRYPOINT specified and the official 3D-R1 loader "
+        "'three_dr1.pipeline:load_pipeline' could not be imported."
+    )
+    details = []
+    if extra:
+        details.append(extra)
+    details.append(
+        "Install the upstream 3D-R1 package (which exposes that entry point) "
+        "or set THREE_DR1_ENTRYPOINT to your own 'module:function' loader "
+        "(e.g. 'my_pkg.pipeline:load_pipeline')."
+    )
+    if _VENDORED_SOURCES.exists():
+        details.append(
+            f"Detected vendored sources at '{_VENDORED_SOURCES}'. Run "
+            "'pip install -e 3D-R1' (or otherwise expose the package on your "
+            "PYTHONPATH) to make 'three_dr1.pipeline' importable."
+        )
+    details.append(
+        "For placeholder predictions, export THREE_DR1_ALLOW_STUB=1 to fall "
+        "back to the smoke-test stub."
+    )
+    return " ".join([base, *details])
 
 NUM_WORDS = {
     "zero": 0,
@@ -84,11 +104,27 @@ def _default_loader(**_: Any) -> Any:
                     flush=True,
                 )
                 _STUB_NOTICE_SHOWN = True
-            return (
-                f"{_DEFAULT_ERROR} Final answer: 0"
-            )
+            return f"{_format_default_error()} Final answer: 0"
 
-    return _StubModel(_DEFAULT_ERROR)
+    return _StubModel(_format_default_error())
+
+
+def _resolve_loader() -> Callable[..., Any]:
+    entrypoint = os.environ.get("THREE_DR1_ENTRYPOINT")
+    if entrypoint:
+        return _load_entrypoint(entrypoint)
+
+    try:
+        return _load_entrypoint(_DEFAULT_ENTRYPOINT)
+    except (ModuleNotFoundError, AttributeError) as exc:
+        if os.environ.get("THREE_DR1_ALLOW_STUB", "0") == "1":
+            print(
+                "[three_d_r1][warning] Falling back to stub predictions because the "
+                "official 3D-R1 loader is unavailable.",
+                flush=True,
+            )
+            return _default_loader
+        raise RuntimeError(_format_default_error(str(exc)))
 
 
 def _resolve_loader() -> Callable[..., Any]:

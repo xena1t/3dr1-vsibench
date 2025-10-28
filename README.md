@@ -17,7 +17,7 @@ Use that upstream README when you need deeper information about the model archit
 
 > **Note**
 > The adapter automatically tries to import the official loader exposed by the upstream PyPI release (`three_dr1.pipeline:load_pipeline`).
-> If you've installed that package the bridge will discover it without extra configuration.
+> Install that package directly or run `pip install -e 3D-R1` inside this repository so the vendored sources become importable.
 > Otherwise, point `THREE_DR1_ENTRYPOINT` at your own loader function before running evaluations.
 > Export `THREE_DR1_ALLOW_STUB=1` only when you deliberately want the placeholder predictions for smoke-tests (they return `0` for every example and will score `0.0`).
 
@@ -74,6 +74,7 @@ Install the helper package in editable mode alongside the upstream repos so loca
    ```bash
    pip install -e /workspace/3dr1-vsibench
    pip install -e /workspace/3dr1-vsibench/thinking-in-space
+   pip install -e /workspace/3dr1-vsibench/3D-R1
    ```
 
 ---
@@ -178,8 +179,11 @@ issue:
 
 1. **Configure a real entry point.** The bridge now raises an error if
    `THREE_DR1_ENTRYPOINT` is missing so that accidental runs do not silently
-   produce all-zero scores. Override this behaviour only when intentionally
-   setting `THREE_DR1_ALLOW_STUB=1` for smoke tests.
+   produce all-zero scores. Install the official package (`pip install -e 3D-R1`
+   inside this repo or the published wheel) so that
+   `three_dr1.pipeline:load_pipeline` becomes importable, or explicitly point
+   the environment variable at your own loader. Override this behaviour only
+   when intentionally setting `THREE_DR1_ALLOW_STUB=1` for smoke tests.
 2. **Inspect the logged samples.** When `--log_samples` is enabled, review the
    generated `vsibench.json` file with the helper script:
 
