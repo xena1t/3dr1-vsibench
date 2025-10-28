@@ -21,10 +21,22 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
 else:
     _HAS_LOGURU = True
 
-# --- Patch sys.modules to unify namespace ---
-# Ensures that `thinking_in_space.lmms_eval` and `lmms_eval` share the same registry
-import thinking_in_space.lmms_eval as _ts_eval
-sys.modules["lmms_eval"] = _ts_eval
+try:
+    from loguru import logger  # type: ignore[import-not-found]
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    logger = logging.getLogger("lmms_eval.models")
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s | %(message)s"))
+        logger.addHandler(handler)
+    logger.setLevel(logging.WARNING)
+    _HAS_LOGURU = False
+else:
+    _HAS_LOGURU = True
+
+if _HAS_LOGURU:
+    logger.remove()
+    logger.add(sys.stdout, level="WARNING")
 
 if _HAS_LOGURU:
     logger.remove()
@@ -86,6 +98,9 @@ try:
     print("[INFO] three_d_r1 imported successfully and added to AVAILABLE_MODELS")
 except Exception as e:
     logger.warning(f"Could not import three_d_r1: {e}")
+
+from lmms_eval.api.registry import MODEL_REGISTRY
+
 
 from lmms_eval.api.registry import MODEL_REGISTRY
 
